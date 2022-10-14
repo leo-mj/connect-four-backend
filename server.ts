@@ -26,7 +26,8 @@ io.on("connection", (socket: Socket) => {
 
   socket.on("cell click", (changedBoard: Board, player: 'A'|'B') => {
     console.log(changedBoard, player);
-    io.emit("cell clicked by other player", changedBoard, player);
+    io.emit("cell clicked by", changedBoard, player);
+    socket.broadcast.emit("next player");
   })
 
   socket.on("winner", (winner: 'A'|'B') => {
