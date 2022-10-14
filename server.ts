@@ -1,42 +1,47 @@
-import { Client } from "pg";
-import { config } from "dotenv";
 import express from "express";
 import cors from "cors";
+import { createServer } from "http";
+import { Server, Socket } from "socket.io";
 
-config(); //Read .env file lines as though they were env vars.
-
-//Call this script with the environment variable LOCAL set if you want to connect to a local db (i.e. without SSL)
-//Do not set the environment variable LOCAL if you want to connect to a heroku DB.
-
-//For the ssl property of the DB connection config, use a value of...
-// false - when connecting to a local DB
-// { rejectUnauthorized: false } - when connecting to a heroku DB
-const herokuSSLSetting = { rejectUnauthorized: false }
-const sslSetting = process.env.LOCAL ? false : herokuSSLSetting
-const dbConfig = {
-  connectionString: process.env.DATABASE_URL,
-  ssl: sslSetting,
-};
 
 const app = express();
+const httpServer = createServer(app);
 
 app.use(express.json()); //add body parser to each following route handler
-app.use(cors()) //add CORS support to each following route handler
+app.use(cors()); //add CORS support to each following route handler
+const io = new Server(httpServer, {
+  cors: {
+      origin: "*",
+  },
+});
+type Board = (null | "A" | "B")[][];
 
-const client = new Client(dbConfig);
-client.connect();
+io.on("connection", (socket: Socket) => {
+  console.log("connected")
+  
+  socket.on("reset", () => {
+    console.log("resetting");
+    io.emit("reset");
+  });
 
-app.get("/", async (req, res) => {
-  const dbres = await client.query('select * from categories');
-  res.json(dbres.rows);
+  socket.on("cell click", (changedBoard: Board) => {
+    console.log(changedBoard);
+    io.emit("cell clicked by other player", changedBoard);
+  })
+
+  socket.on("winner", (winner: 'A'|'B') => {
+    console.log(winner);
+    io.emit("game won by", winner);
+  })
 });
 
 
+
+
+
+
 //Start the server on the given port
-const port = process.env.PORT;
-if (!port) {
-  throw 'Missing PORT environment variable.  Set it in .env file.';
-}
-app.listen(port, () => {
+const port = process.env.PORT || 4000;
+httpServer.listen(port, () => {
   console.log(`Server is up and running on port ${port}`);
 });
