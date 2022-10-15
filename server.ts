@@ -26,13 +26,13 @@ io.on("connection", (socket: Socket) => {
 
   socket.on("cell click", (changedBoard: Board, player: 'A'|'B') => {
     console.log(changedBoard, player);
-    io.emit("cell clicked by", changedBoard, player);
+    socket.broadcast.emit("cell clicked by", changedBoard, player);
     socket.broadcast.emit("next player");
   })
 
   socket.on("winner", (winner: 'A'|'B') => {
     console.log(winner);
-    io.emit("game won by", winner);
+    socket.broadcast.emit("game won by", winner);
   })
 });
 
