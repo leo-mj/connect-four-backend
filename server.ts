@@ -14,26 +14,61 @@ const io = new Server(httpServer, {
       origin: "*",
   },
 });
+
+
 type Board = (null | "A" | "B")[][];
+interface OnlinePlayer {
+  username: string;
+  id: string;
+}
+
+let onlinePlayers: OnlinePlayer[] = [];
 
 io.on("connection", (socket: Socket) => {
-  console.log("connected")
-  
-  socket.on("reset", () => {
+  console.log("connected", socket.id);
+  io.emit("players online updated", onlinePlayers);
+    
+  socket.on("reset", (opponent: OnlinePlayer) => {
     console.log("resetting");
-    io.emit("reset");
+    socket.to(opponent.id).emit("reset");
   });
 
-  socket.on("cell click", (changedBoard: Board, player: 'A'|'B') => {
-    console.log(changedBoard, player);
-    socket.broadcast.emit("cell clicked by", changedBoard, player);
-    socket.broadcast.emit("next player");
+  socket.on("cell click", (changedBoard: Board, player: 'A'|'B', opponent: OnlinePlayer) => {
+    const lastPlayer: OnlinePlayer = onlinePlayers.filter(player => player.id === socket.id)[0];
+    console.log(`${lastPlayer.username} just moved as ${player}`, "next move by:", opponent.username);
+    socket.to(opponent.id).emit("cell clicked by", changedBoard, player);
   })
 
-  socket.on("winner", (winner: 'A'|'B') => {
+  socket.on("winner", (winner: 'A'|'B', opponent: OnlinePlayer) => {
     console.log(winner);
-    socket.broadcast.emit("game won by", winner);
+    socket.to(opponent.id).emit("game won by", winner);
   })
+
+
+  socket.on("new player online", (username: string) => {
+    console.log(username, "now online");
+    const newPlayer: OnlinePlayer = {username: username, id: socket.id};
+    onlinePlayers.push(newPlayer);
+    io.emit("players online updated", onlinePlayers);
+  })
+
+  socket.on("challenge", (invitedPlayerId: string, username: string) => {
+    socket.to(invitedPlayerId).emit("challenged", {username: username, id: socket.id});
+  })
+
+  socket.on("challenge accepted", (otherPlayerId) => {
+    socket.to(otherPlayerId).emit("your challenge accepted", socket.id);
+  })
+
+  socket.on("disconnect", () => {
+    const offlinePlayer = onlinePlayers.filter(player => player.id === socket.id)[0];
+    if (offlinePlayer) {
+      console.log(offlinePlayer.username, "is going offline");
+    }
+    onlinePlayers = onlinePlayers.filter(player => player.id !== socket.id);
+    socket.broadcast.emit("players online updated", onlinePlayers);
+  })
+
 });
 
 
