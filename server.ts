@@ -57,16 +57,24 @@ io.on("connection", (socket: Socket) => {
       socket.emit("player busy", busyPlayer);
     } else {
       socket.to(invitedPlayerId).emit("challenged", {username: challenger.username, id: challenger.id});
+      busyPlayers.push(challenger);
+      io.emit("players online updated", onlinePlayers, busyPlayers);
     }
   })
 
-  socket.on("challenge accepted", (challengerId) => {
+  socket.on("challenge accepted", (challengerId: string) => {
     const opponent: OnlinePlayer = getPlayerById(onlinePlayers, socket.id);
     const challenger: OnlinePlayer = getPlayerById(onlinePlayers, challengerId);
     socket.to(challengerId).emit("your challenge accepted", opponent);
     busyPlayers.push(opponent, challenger);
     io.emit("players online updated", onlinePlayers, busyPlayers);
+  })
 
+  socket.on("challenge declined", (challengerId: string) => {
+    const opponent: OnlinePlayer = getPlayerById(onlinePlayers, socket.id);
+    socket.to(challengerId).emit("your challenge declined", opponent);
+    busyPlayers = removePlayerFromArray(busyPlayers, challengerId);
+    io.emit("players online updated", onlinePlayers, busyPlayers);
   })
 
   socket.on("left game", (opponent: OnlinePlayer) => {
