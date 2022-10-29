@@ -15,6 +15,7 @@ app.use(cors()); //add CORS support to each following route handler
 const io = new Server(httpServer, {
   cors: {
       origin: "*",
+      methods: ["GET", "POST"]
   },
 });
 
@@ -53,21 +54,29 @@ io.on("connection", (socket: Socket) => {
     const challenger: OnlinePlayer = getPlayerById(onlinePlayers, socket.id);
     const busyPlayer: OnlinePlayer = getPlayerById(busyPlayers, invitedPlayerId);
     console.log("busy player:", busyPlayer, (busyPlayer !== undefined));
-    if (busyPlayer !== undefined) {
-      socket.emit("player busy", busyPlayer);
-    } else {
-      socket.to(invitedPlayerId).emit("challenged", {username: challenger.username, id: challenger.id});
-      busyPlayers.push(challenger);
-      io.emit("players online updated", onlinePlayers, busyPlayers);
+    try {
+      if (challenger !== undefined && busyPlayer === undefined) {
+        socket.to(invitedPlayerId).emit("challenged", {username: challenger.username, id: challenger.id});
+      } else if (challenger === undefined) {
+        socket.emit("player busy", busyPlayer);
+      }
+    } catch (error) {
+      console.error(error);
+      socket.emit("Something has gone wrong. Please reload the page.")
     }
   })
 
   socket.on("challenge accepted", (challengerId: string) => {
     const opponent: OnlinePlayer = getPlayerById(onlinePlayers, socket.id);
     const challenger: OnlinePlayer = getPlayerById(onlinePlayers, challengerId);
-    socket.to(challengerId).emit("your challenge accepted", opponent);
-    busyPlayers.push(opponent, challenger);
-    io.emit("players online updated", onlinePlayers, busyPlayers);
+    try {
+      socket.to(challengerId).emit("your challenge accepted", opponent);
+      busyPlayers.push(opponent, challenger);
+      io.emit("players online updated", onlinePlayers, busyPlayers);
+    } catch (error) {
+      console.error(error);
+      socket.emit("Something has gone wrong. Please reload the page.")
+    }
   })
 
   socket.on("challenge declined", (challengerId: string) => {
@@ -79,12 +88,19 @@ io.on("connection", (socket: Socket) => {
 
   socket.on("left game", (opponent: OnlinePlayer) => {
     const leavingPlayer: OnlinePlayer = getPlayerById(onlinePlayers, socket.id);
-    console.log(leavingPlayer.username, "left the game against", opponent.username);
-    socket.to(opponent.id).emit("opponent left game", leavingPlayer.username);
-    busyPlayers = removePlayerFromArray(busyPlayers, leavingPlayer.id);
-    busyPlayers = removePlayerFromArray(busyPlayers, opponent.id);
+    try {
+      if (leavingPlayer) {
+        console.log(leavingPlayer.username, "left the game against", opponent.username);
+        socket.to(opponent.id).emit("opponent left game", leavingPlayer.username);
+        busyPlayers = removePlayerFromArray(busyPlayers, leavingPlayer.id);
+        busyPlayers = removePlayerFromArray(busyPlayers, opponent.id);
+      }
+    } catch (error) {
+      console.log(error);
+      socket.to(opponent.id).emit("opponent left game", "Your opponent");
+      busyPlayers = removePlayerFromArray(busyPlayers, opponent.id);
+    }
     io.emit("players online updated", onlinePlayers, busyPlayers);
-
   })
 
   
